@@ -1,0 +1,11 @@
+# Lint/format
+mypy==1.17.0
+pyright
+ruff==0.12.5
+
+# Stubs
+types-networkx==3.5.0.20250712
+
+# Tests
+nox==2025.5.1
+pytest

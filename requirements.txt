@@ -1,0 +1,2 @@
+graphix @ git+https://github.com/thierry-martinez/graphix@noise-models_transducer_api 
+stim>=1.15,<2
