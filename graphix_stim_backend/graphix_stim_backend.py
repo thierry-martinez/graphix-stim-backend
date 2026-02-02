@@ -190,12 +190,13 @@ def get_renumbered_graph(pattern: Pattern) -> RenumberedGraph:
     :return: the renumbering and the graph
     """
     graph = pattern.extract_graph()
+    nodes = list(graph.nodes())
     renumbering = {node: i for i, node in enumerate(graph.nodes())}
     renumbered_edges = [(renumbering[u], renumbering[v]) for (u, v) in graph.edges()]
     renumbered_graph = GraphType()
-    renumbered_graph.add_nodes_from(range(len(graph.nodes())))
+    renumbered_graph.add_nodes_from(range(len(nodes)))
     renumbered_graph.add_edges_from(renumbered_edges)
-    return RenumberedGraph(list(graph.nodes()), list(graph.edges()), renumbering, renumbered_graph)
+    return RenumberedGraph(nodes, list(graph.edges()), renumbering, renumbered_graph)
 
 
 def _graph_state_to_edges_and_vops(
