@@ -11,8 +11,9 @@ from graphix.branch_selector import (
 from graphix.fundamentals import Plane
 from graphix.noise_models.depolarising import DepolarisingNoiseModel
 from graphix.noise_models.noise_model import NoiseModel
+from graphix.optimization import StandardizedPattern
 from graphix.random_objects import rand_circuit
-from graphix.sim.base_backend import BackendState, Matrix, outer
+from graphix.sim.base_backend import DenseState, Matrix, outer
 from graphix.sim.density_matrix import DensityMatrix
 from graphix.sim.statevec import Statevec
 from graphix.simulator import DefaultMeasureMethod
@@ -33,7 +34,7 @@ def fidelity(u: Matrix, v: Matrix) -> float:
     return np.abs(np.dot(u.conjugate(), v))  # type: ignore[no-any-return]
 
 
-def compare_backend_results(state1: BackendState, state2: BackendState) -> float:
+def compare_backend_results(state1: DenseState, state2: DenseState) -> float:
     """Compute fidelity between two backend states."""
     if isinstance(state1, Statevec) and isinstance(state2, Statevec):
         return fidelity(state1.flatten(), state2.flatten())
@@ -65,15 +66,14 @@ def test_simple() -> None:
     pattern2 = presimulate_pauli(pattern, leave_input=False)
     pattern.minimize_space()
     pattern2.minimize_space()
-    backend = "statevector"
     # Simulating the unprocessed pattern with the measures chosen by stim
     pbs = FixedBranchSelector(pattern2.results, RandomBranchSelector())
     # Instantiate the measure method to retrieve the measures of the non-Pauli nodes
     measure_method = DefaultMeasureMethod()
-    state = pattern.simulate_pattern(backend, branch_selector=pbs, measure_method=measure_method)
+    state = pattern.simulate_pattern(branch_selector=pbs, measure_method=measure_method)
     # Simulating the processed pattern with the measures drawn for the previous simulation
     pbs2 = FixedBranchSelector(measure_method.results)
-    state2 = pattern2.simulate_pattern(backend, branch_selector=pbs2)
+    state2 = pattern2.simulate_pattern(branch_selector=pbs2)
     assert compare_backend_results(state2, state) == pytest.approx(1)
 
 
@@ -81,7 +81,6 @@ def test_simple() -> None:
 def test_pauli_measurement_random_circuit(fx_bg: PCG64, jumps: int) -> None:
     """Test with random circuits."""
     rng = Generator(fx_bg.jumped(jumps))
-    backend = "statevector"
     nqubits = 4
     depth = 4
     circuit = rand_circuit(nqubits, depth, rng)
@@ -92,8 +91,8 @@ def test_pauli_measurement_random_circuit(fx_bg: PCG64, jumps: int) -> None:
     pattern.minimize_space()
     # pattern2.minimize_space()  # Break runnability!  # noqa: ERA001
     # Since the patterns are deterministic, we do not need to select a particular branch
-    state = pattern.simulate_pattern(backend)
-    state2 = pattern2.simulate_pattern(backend)
+    state = pattern.simulate_pattern()
+    state2 = pattern2.simulate_pattern()
     assert compare_backend_results(state, state2) == pytest.approx(1)
 
 
@@ -122,7 +121,7 @@ def test_simulate_pauli_depolarising_noise(fx_bg: PCG64, jumps: int) -> None:
     pattern = circuit.transpile().pattern
     pattern.standardize()
     pattern.shift_signals()
-    pattern.move_pauli_measurements_to_the_front()
+    pattern = StandardizedPattern.from_pattern(pattern).perform_pauli_pushing().to_pattern()
     pauli_pattern, _non_pauli_pattern = cut_pattern(pattern)
     noise_model = DepolarisingNoiseModel()
     backend = StimBackend()
@@ -185,7 +184,7 @@ def test_add_nodes() -> None:
         backend.add_nodes([0], state)
         [
             stim_stab,
-        ] = backend.state.sim.canonical_stabilizers()
+        ] = backend.state.canonical_stabilizers()
         assert stim_stab == stabs[i]
 
 

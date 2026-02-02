@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Literal
@@ -14,13 +13,11 @@ import stim
 from graphix import Pattern, command
 from graphix.clifford import Clifford
 from graphix.command import CommandKind
-from graphix.fundamentals import Axis, Plane, Sign
+from graphix.fundamentals import ANGLE_PI, Axis, Plane, Sign
 from graphix.measurements import Measurement, Outcome, PauliMeasurement, outcome
-from graphix.noise_models.depolarising import (
-    DepolarisingNoise,
-    TwoQubitDepolarisingNoise,
-)
-from graphix.sim.base_backend import Backend, BackendState, Matrix
+from graphix.noise_models.depolarising import DepolarisingNoise, TwoQubitDepolarisingNoise
+from graphix.optimization import StandardizedPattern
+from graphix.sim.base_backend import Backend, Matrix
 from graphix.sim.statevec import Statevec
 from graphix.simulator import DefaultMeasureMethod, MeasureMethod
 from graphix.states import BasicStates, PlanarState, State
@@ -31,7 +28,6 @@ from graphix_stim_backend.single_pauli_noise_model import SinglePauliNoise
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
-    import numpy.typing as npt
     from graphix.noise_models.noise_model import CommandOrNoise, Noise, NoiseModel
     from graphix.sim.data import Data
     from numpy.random import Generator
@@ -46,23 +42,23 @@ class BasicState(Enum):
     """Enumeration for basic states."""
 
     ZERO = PlanarState(Plane.XZ, 0)
-    ONE = PlanarState(Plane.XZ, math.pi)
+    ONE = PlanarState(Plane.XZ, ANGLE_PI)
     PLUS = PlanarState(Plane.XY, 0)
-    MINUS = PlanarState(Plane.XY, math.pi)
-    PLUS_I = PlanarState(Plane.XY, math.pi / 2)
-    MINUS_I = PlanarState(Plane.XY, -math.pi / 2)
+    MINUS = PlanarState(Plane.XY, ANGLE_PI)
+    PLUS_I = PlanarState(Plane.XY, ANGLE_PI / 2)
+    MINUS_I = PlanarState(Plane.XY, -ANGLE_PI / 2)
 
     @staticmethod
     def try_from_statevector(sv: Matrix) -> BasicState | None:
         """Return the BasicState corresponding to the parameter, or not if it is not a basic state."""
-        return next((bs for bs in BasicState if np.all(bs.value.get_statevector() == sv)), None)
+        return next((bs for bs in BasicState if np.all(bs.value.to_statevector() == sv)), None)
 
     @staticmethod
     def try_from_state(s: State) -> BasicState | None:
         """Return the BasicState corresponding to the parameter, or not if it is not a basic state."""
         if isinstance(s, PlanarState):
             return next((bs for bs in BasicState if bs.value == s), None)
-        return BasicState.try_from_statevector(s.get_statevector())
+        return BasicState.try_from_statevector(s.to_statevector())
 
 
 BASIC_STATE_TO_CLIFFORD = {
@@ -193,13 +189,13 @@ def get_renumbered_graph(pattern: Pattern) -> RenumberedGraph:
     :param pattern: pattern
     :return: the renumbering and the graph
     """
-    nodes, edges = pattern.get_graph()
-    renumbering = {node: i for i, node in enumerate(nodes)}
-    renumbered_edges = [(renumbering[u], renumbering[v]) for (u, v) in edges]
-    graph: GraphType = GraphType()
-    graph.add_nodes_from(range(len(nodes)))
-    graph.add_edges_from(renumbered_edges)
-    return RenumberedGraph(nodes, edges, renumbering, graph)
+    graph = pattern.extract_graph()
+    renumbering = {node: i for i, node in enumerate(graph.nodes())}
+    renumbered_edges = [(renumbering[u], renumbering[v]) for (u, v) in graph.edges()]
+    renumbered_graph = GraphType()
+    renumbered_graph.add_nodes_from(range(len(graph.nodes())))
+    renumbered_graph.add_edges_from(renumbered_edges)
+    return RenumberedGraph(list(graph.nodes()), list(graph.edges()), renumbering, renumbered_graph)
 
 
 def _graph_state_to_edges_and_vops(
@@ -244,22 +240,9 @@ def cut_pattern(pattern: Pattern) -> tuple[Pattern, Pattern]:
     return (pauli_pattern, non_pauli_pattern)
 
 
-@dataclass
-class StimBackendState(BackendState):
-    """State for the Stim backend."""
-
-    sim: stim.TableauSimulator
-
-    def flatten(self) -> npt.NDArray[np.complex128]:
-        """Return flattened state."""
-        raise NotImplementedError
-
-
 @dataclass(frozen=True)
-class _AbstractStimBackend(Backend[StimBackendState]):
-    state: StimBackendState = dataclasses.field(
-        init=False, default_factory=lambda: StimBackendState(stim.TableauSimulator())
-    )
+class _AbstractStimBackend(Backend[stim.TableauSimulator]):
+    state: stim.TableauSimulator = dataclasses.field(init=False, default_factory=stim.TableauSimulator)
     branch: dict[int, Outcome] | None = None
 
     @override
@@ -272,49 +255,49 @@ class _AbstractStimBackend(Backend[StimBackendState]):
 
         if state == BasicState.ZERO:
             # required by stim otherwise empty stabiliser
-            self.state.sim.z(*nodes)
+            self.state.z(*nodes)
         elif state == BasicState.ONE:
-            self.state.sim.x(*nodes)
+            self.state.x(*nodes)
         elif state == BasicState.PLUS:
-            self.state.sim.h(*nodes)
+            self.state.h(*nodes)
         elif state == BasicState.MINUS:
-            self.state.sim.h(*nodes)
-            self.state.sim.z(*nodes)
+            self.state.h(*nodes)
+            self.state.z(*nodes)
         elif state == BasicState.PLUS_I:
-            self.state.sim.h(*nodes)
-            self.state.sim.s(*nodes)
+            self.state.h(*nodes)
+            self.state.s(*nodes)
         elif state == BasicState.MINUS_I:
-            self.state.sim.h(*nodes)
-            self.state.sim.s(*nodes)
-            self.state.sim.z(*nodes)
+            self.state.h(*nodes)
+            self.state.s(*nodes)
+            self.state.z(*nodes)
         else:
             assert_never(state)
 
     @override
     def entangle_nodes(self, edge: tuple[int, int]) -> None:
-        self.state.sim.cz(*edge)
+        self.state.cz(*edge)
 
     @override
     def measure(self, node: int, measurement: Measurement, rng: Generator | None = None) -> Outcome:
-        pm = PauliMeasurement.try_from(measurement.plane, measurement.angle / math.pi)
+        pm = PauliMeasurement.try_from(measurement.plane, measurement.angle)
         if pm is None:
             msg = f"The measurement {measurement} is not in Pauli basis."
             raise ValueError(msg)
-        return apply_pauli_measurement(self.state.sim, node, pm, self.branch, s_signal=False, t_signal=False)
+        return apply_pauli_measurement(self.state, node, pm, self.branch, s_signal=False, t_signal=False)
 
     @override
     def apply_clifford(self, node: int, clifford: Clifford) -> None:
-        apply_clifford(self.state.sim, node, clifford)
+        apply_clifford(self.state, node, clifford)
 
     @override
     def apply_noise(self, nodes: Sequence[int], noise: Noise) -> None:
         match noise:
             case DepolarisingNoise(prob=prob):
                 (q,) = nodes
-                self.state.sim.depolarize1(q, p=prob)
+                self.state.depolarize1(q, p=prob)
             case TwoQubitDepolarisingNoise(prob=prob):
                 (q0, q1) = nodes
-                self.state.sim.depolarize2(q0, q1, p=prob)
+                self.state.depolarize2(q0, q1, p=prob)
             # add case here
             case _:
                 msg = f"Unsupported noise: {noise} and {nodes}"
@@ -323,7 +306,7 @@ class _AbstractStimBackend(Backend[StimBackendState]):
     @override
     def correct_byproduct(self, cmd: command.X | command.Z, measure_method: MeasureMethod) -> None:
         """Byproduct correction correct for the X or Z byproduct operators, by applying the X or Z gate."""
-        if np.mod(sum(measure_method.get_measure_result(j) for j in cmd.domain), 2) == 1:
+        if np.mod(sum(measure_method.measurement_outcome(j) for j in cmd.domain), 2) == 1:
             clifford = Clifford.X if cmd.kind == CommandKind.X else Clifford.Z
             self.apply_clifford(node=cmd.node, clifford=clifford)
 
@@ -333,7 +316,7 @@ class _AbstractStimBackend(Backend[StimBackendState]):
 
     def to_pattern(self, input_nodes: list[int], output_nodes: list[int]) -> Pattern:
         """Return a pattern implementing the simulation."""
-        tableau = self.state.sim.current_inverse_tableau().inverse()
+        tableau = self.state.current_inverse_tableau().inverse()
         circuit = tableau.to_circuit("graph_state")
         return _graph_state_to_pattern(circuit, input_nodes, output_nodes)
 
@@ -457,7 +440,7 @@ def presimulate_pauli(
 ) -> Pattern:
     """Return a pattern where Clifford measurements have been presimulated."""
     leave_nodes = set(pattern.input_nodes) if leave_input else None
-    pattern.move_pauli_measurements_to_the_front(leave_nodes)
+    pattern = StandardizedPattern.from_pattern(pattern).perform_pauli_pushing(leave_nodes).to_pattern()
     pauli_pattern, non_pauli_pattern = cut_pattern(pattern)
     backend = StimBackend(branch=branch)
     measure_method = DefaultMeasureMethod()
