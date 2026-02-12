@@ -1,5 +1,7 @@
 """Tests for Stim backend."""
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
 import stim
@@ -8,7 +10,7 @@ from graphix.branch_selector import (
     FixedBranchSelector,
     RandomBranchSelector,
 )
-from graphix.fundamentals import Plane
+from graphix.measurements import Measurement
 from graphix.noise_models.depolarising import DepolarisingNoiseModel
 from graphix.noise_models.noise_model import NoiseModel
 from graphix.optimization import StandardizedPattern
@@ -27,6 +29,9 @@ from graphix_stim_backend import (
     pattern_to_stim_circuit,
     presimulate_pauli,
 )
+
+if TYPE_CHECKING:
+    from graphix.measurements import PauliMeasurement
 
 
 def fidelity(u: Matrix, v: Matrix) -> float:
@@ -56,13 +61,13 @@ def compare_backend_results(state1: DenseState, state2: DenseState) -> float:
 def test_simple() -> None:
     """Test with simple pattern."""
     pattern = Pattern()
-    pattern.add(command.N(node=0))
-    pattern.add(command.N(node=1))
-    pattern.add(command.N(node=2))
-    pattern.add(command.E(nodes=(0, 1)))
-    pattern.add(command.E(nodes=(1, 2)))
-    pattern.add(command.M(node=0, plane=Plane.XY, angle=0.5))
-    pattern.add(command.M(node=1, plane=Plane.XY, angle=0.4, s_domain={0}))
+    pattern.add(command.N(0))
+    pattern.add(command.N(1))
+    pattern.add(command.N(2))
+    pattern.add(command.E((0, 1)))
+    pattern.add(command.E((1, 2)))
+    pattern.add(command.M(0, Measurement.Y))
+    pattern.add(command.M(1, Measurement.XY(0.4), s_domain={0}))
     pattern2 = presimulate_pauli(pattern, leave_input=False)
     pattern.minimize_space()
     pattern2.minimize_space()
@@ -191,11 +196,12 @@ def test_add_nodes() -> None:
 def test_pattern_to_stim_circuit(fx_rng: Generator) -> None:
     """Test pattern to Stim circuit conversion with random circuit."""
     nodes = 50
-    planes = [Plane(p) for p in fx_rng.integers(low=1, high=4, size=nodes)]
+    pauli_measurements = [Measurement.X, Measurement.Z]
+    measurements: list[PauliMeasurement] = [pauli_measurements[p] for p in fx_rng.integers(2, size=nodes)]
     expected_results = [fx_rng.integers(2) == 1 for _ in range(nodes)]
 
     def get_input_state(node: int) -> BasicState:
-        if planes[node] == Plane.XY:
+        if measurements[node] == Measurement.X:
             if expected_results[node]:
                 return BasicState.MINUS
             return BasicState.PLUS
@@ -206,7 +212,7 @@ def test_pattern_to_stim_circuit(fx_rng: Generator) -> None:
     pattern = Pattern(input_nodes=list(range(nodes)))
     node: int
     for node in fx_rng.choice(range(nodes), size=nodes, replace=False):
-        pattern.add(command.M(node, plane=planes[node], angle=0))
+        pattern.add(command.M(node, measurements[node]))
     circuit, measure_indices = pattern_to_stim_circuit(
         pattern,
         input_state={node: get_input_state(node) for node in range(nodes)},
@@ -224,8 +230,8 @@ def test_pattern_to_stim_circuit_hadamard() -> None:
     pattern = circuit.transpile().pattern
     node0 = pattern.output_nodes[0]
     node1 = pattern.output_nodes[1]
-    pattern.add(command.M(node0, plane=Plane.XY))
-    pattern.add(command.M(node1, plane=Plane.XY))
+    pattern.add(command.M(node0))
+    pattern.add(command.M(node1))
     stim_circuit, measure_indices = pattern_to_stim_circuit(
         pattern,
         input_state={0: BasicState.ZERO, 1: BasicState.ONE},

@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/TeamGraphix/graphix
+graphix @ git+https://github.com/thierry-martinez/graphix@fix/181-pauli_plane_measurements
 stim>=1.15,<2

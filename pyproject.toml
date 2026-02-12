@@ -51,7 +51,7 @@ strict = true
 
 [tool.pyright]
 # Keep in sync with pyright
-files = ["*.py", "graphix_stim_backend", "tests"]
+include = ["*.py", "graphix_stim_backend", "tests"]
 typeCheckingMode = "strict"
 reportUnknownArgumentType = "error"
 reportUnknownLambdaType = "error"
