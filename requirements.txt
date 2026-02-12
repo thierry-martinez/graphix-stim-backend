@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/mgarnier59/graphix@noise-cond-fix
+graphix @ git+https://github.com/mgarnier59/graphix-dev@noise-cond-fix
 stim>=1.15,<2
