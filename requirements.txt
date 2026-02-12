@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/thierry-martinez/graphix@fix/220_avoid_get_set
+graphix @ git+https://github.com/mgarnier59/graphix@noise-cond-fix
 stim>=1.15,<2

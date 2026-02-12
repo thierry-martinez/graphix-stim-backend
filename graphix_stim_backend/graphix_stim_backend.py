@@ -19,7 +19,7 @@ from graphix.noise_models.depolarising import DepolarisingNoise, TwoQubitDepolar
 from graphix.optimization import StandardizedPattern
 from graphix.sim.base_backend import Backend, Matrix
 from graphix.sim.statevec import Statevec
-from graphix.simulator import DefaultMeasureMethod, MeasureMethod
+from graphix.simulator import DefaultMeasureMethod
 from graphix.states import BasicStates, PlanarState, State
 from typing_extensions import assert_never, override
 
@@ -28,7 +28,7 @@ from graphix_stim_backend.single_pauli_noise_model import SinglePauliNoise
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
-    from graphix.noise_models.noise_model import CommandOrNoise, Noise, NoiseModel
+    from graphix.noise_models.noise_model import ApplyNoise, CommandOrNoise, NoiseModel
     from graphix.sim.data import Data
     from numpy.random import Generator
 
@@ -291,25 +291,24 @@ class _AbstractStimBackend(Backend[stim.TableauSimulator]):
         apply_clifford(self.state, node, clifford)
 
     @override
-    def apply_noise(self, nodes: Sequence[int], noise: Noise) -> None:
-        match noise:
+    def apply_noise(self, cmd: ApplyNoise) -> None:
+        match cmd.noise:
             case DepolarisingNoise(prob=prob):
-                (q,) = nodes
+                (q,) = cmd.nodes
                 self.state.depolarize1(q, p=prob)
             case TwoQubitDepolarisingNoise(prob=prob):
-                (q0, q1) = nodes
+                (q0, q1) = cmd.nodes
                 self.state.depolarize2(q0, q1, p=prob)
             # add case here
             case _:
-                msg = f"Unsupported noise: {noise} and {nodes}"
+                msg = f"Unsupported noise: {cmd.noise} and {cmd.nodes}"
                 raise ValueError(msg)
 
     @override
-    def correct_byproduct(self, cmd: command.X | command.Z, measure_method: MeasureMethod) -> None:
+    def correct_byproduct(self, cmd: command.X | command.Z) -> None:
         """Byproduct correction correct for the X or Z byproduct operators, by applying the X or Z gate."""
-        if np.mod(sum(measure_method.measurement_outcome(j) for j in cmd.domain), 2) == 1:
-            clifford = Clifford.X if cmd.kind == CommandKind.X else Clifford.Z
-            self.apply_clifford(node=cmd.node, clifford=clifford)
+        clifford = Clifford.X if cmd.kind == CommandKind.X else Clifford.Z
+        self.apply_clifford(node=cmd.node, clifford=clifford)
 
     @override
     def finalize(self, output_nodes: Iterable[int]) -> None:
