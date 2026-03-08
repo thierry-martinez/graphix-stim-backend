@@ -279,7 +279,9 @@ class _AbstractStimBackend(Backend[stim.TableauSimulator]):
         self.state.cz(*edge)
 
     @override
-    def measure(self, node: int, measurement: Measurement, rng: Generator | None = None) -> Outcome:
+    def measure(
+        self, node: int, measurement: Measurement, rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> Outcome:
         if not isinstance(measurement, PauliMeasurement):
             msg = f"The measurement {measurement} is not Pauli."
             raise TypeError(msg)
