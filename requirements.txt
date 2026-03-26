@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/TeamGraphix/graphix
+graphix @ git+https://github.com/thierry-martinez/graphix@reproducibility_warnings
 stim>=1.15,<2

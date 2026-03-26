@@ -57,44 +57,46 @@ class SinglePauliNoiseModel(NoiseModel):
     error_type: Literal["X", "Z"] = "X"
 
     @override
-    def input_nodes(self, nodes: Iterable[int], rng: Generator | None = None) -> list[CommandOrNoise]:
+    def input_nodes(
+        self, nodes: Iterable[int], rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> list[CommandOrNoise]:
         """Return the noise to apply to input nodes."""
         return []
 
     @override
-    def command(self, cmd: CommandOrNoise, rng: Generator | None = None) -> list[CommandOrNoise]:  # noqa: PLR0911
+    def command(
+        self, cmd: CommandOrNoise, rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> list[CommandOrNoise]:
         # flag to check of target node '1' has been visited to not apply noise twice
-        if cmd.kind == CommandKind.N:
-            return [cmd]
-        if cmd.kind == CommandKind.E:
-            if 0 in cmd.nodes and 1 in cmd.nodes:
-                return [
-                    cmd,
-                    ApplyNoise(
-                        noise=SinglePauliNoise(
-                            self.prob, self.error_type
-                        ),  # another thing where str is not subtype of Literal?
-                        nodes=[1],
-                    ),
-                ]
-            return [cmd]
-
-        if cmd.kind == CommandKind.M:
-            return [cmd]
-        if cmd.kind == CommandKind.X:
-            return [cmd]
-        if cmd.kind == CommandKind.Z:
-            return [cmd]
-        # Use of `==` here for mypy
-        if (
-            cmd.kind == CommandKind.C  # noqa: PLR1714
-            or cmd.kind == CommandKind.T
-            or cmd.kind == CommandKind.ApplyNoise
-            or cmd.kind == CommandKind.S
-        ):
-            return [cmd]
-        assert_never(cmd.kind)
+        match cmd.kind:
+            case (
+                CommandKind.N
+                | CommandKind.M
+                | CommandKind.X
+                | CommandKind.Z
+                | CommandKind.C
+                | CommandKind.T
+                | CommandKind.ApplyNoise
+                | CommandKind.S
+            ):
+                return [cmd]
+            case CommandKind.E:
+                if 0 in cmd.nodes and 1 in cmd.nodes:
+                    return [
+                        cmd,
+                        ApplyNoise(
+                            noise=SinglePauliNoise(
+                                self.prob, self.error_type
+                            ),  # another thing where str is not subtype of Literal?
+                            nodes=[1],
+                        ),
+                    ]
+                return [cmd]
+            case _:
+                assert_never(cmd.kind)
 
     @override
-    def confuse_result(self, cmd: BaseM, result: Outcome, rng: Generator | None = None) -> Outcome:
+    def confuse_result(
+        self, cmd: BaseM, result: Outcome, rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> Outcome:
         return result

@@ -230,7 +230,7 @@ def cut_pattern(pattern: Pattern) -> tuple[Pattern, Pattern]:
     first_non_pauli = None
     it = iter(pattern)
     for cmd in it:
-        if cmd.kind == CommandKind.M and PauliMeasurement.try_from(cmd.plane, cmd.angle) is None:
+        if cmd.kind == CommandKind.M and not isinstance(cmd.measurement, PauliMeasurement):
             first_non_pauli = cmd
             break
         pauli_pattern.add(cmd)
@@ -279,12 +279,13 @@ class _AbstractStimBackend(Backend[stim.TableauSimulator]):
         self.state.cz(*edge)
 
     @override
-    def measure(self, node: int, measurement: Measurement, rng: Generator | None = None) -> Outcome:
-        pm = PauliMeasurement.try_from(measurement.plane, measurement.angle)
-        if pm is None:
-            msg = f"The measurement {measurement} is not in Pauli basis."
-            raise ValueError(msg)
-        return apply_pauli_measurement(self.state, node, pm, self.branch, s_signal=False, t_signal=False)
+    def measure(
+        self, node: int, measurement: Measurement, rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> Outcome:
+        if not isinstance(measurement, PauliMeasurement):
+            msg = f"The measurement {measurement} is not Pauli."
+            raise TypeError(msg)
+        return apply_pauli_measurement(self.state, node, measurement, self.branch, s_signal=False, t_signal=False)
 
     @override
     def apply_clifford(self, node: int, clifford: Clifford) -> None:
@@ -377,11 +378,10 @@ def pattern_to_stim_circuit(  # noqa: C901,PLR0912,PLR0915
                 circuit.append("CX", [get_target(node), cmd.node])  # type: ignore[call-overload]
             for node in cmd.t_domain:
                 circuit.append("CZ", [get_target(node), cmd.node])  # type: ignore[call-overload]
-            measurement = PauliMeasurement.try_from(cmd.plane, cmd.angle)
-            if measurement is None:
+            if not isinstance(cmd.measurement, PauliMeasurement):
                 msg = f"Non-Pauli measurement: {cmd}"
                 raise ValueError(msg)
-            cliffords = pauli_measurement_to_clifford_gates(measurement)
+            cliffords = pauli_measurement_to_clifford_gates(cmd.measurement)
             for clifford in reversed(cliffords):
                 circuit.append(str(clifford), [cmd.node])  # type: ignore[call-overload]
             circuit.append("M", [cmd.node])  # type: ignore[call-overload]
