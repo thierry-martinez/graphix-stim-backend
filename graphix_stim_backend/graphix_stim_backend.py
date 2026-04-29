@@ -27,13 +27,13 @@ from graphix_stim_backend.single_pauli_noise_model import SinglePauliNoise
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+    from typing import TypeAlias
 
     from graphix.noise_models.noise_model import ApplyNoise, CommandOrNoise, NoiseModel
     from graphix.sim.data import Data
     from numpy.random import Generator
 
-if TYPE_CHECKING:
-    GraphType = nx.Graph[int]
+    GraphType: TypeAlias = nx.Graph[int]
 else:
     GraphType = nx.Graph
 

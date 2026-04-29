@@ -9,7 +9,6 @@ from graphix.channels import KrausChannel, KrausData
 from graphix.command import BaseM, CommandKind
 from graphix.noise_models.noise_model import (
     ApplyNoise,
-    CommandOrNoise,
     Noise,
     NoiseModel,
 )
@@ -20,6 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from graphix.measurements import Outcome
+    from graphix.noise_models.noise_model import CommandOrNoise
     from numpy.random import Generator
 
 
