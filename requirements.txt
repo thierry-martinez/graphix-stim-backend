@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/TeamGraphix/graphix.git@namespace
+graphix @ git+https://github.com/TeamGraphix/graphix.git
 stim>=1.15,<2
