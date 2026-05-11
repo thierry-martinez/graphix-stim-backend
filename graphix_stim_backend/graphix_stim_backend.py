@@ -27,8 +27,10 @@ from graphix_stim_backend.single_pauli_noise_model import SinglePauliNoise
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Set as AbstractSet
     from typing import TypeAlias
 
+    from graphix.command import CommandType, Node
     from graphix.noise_models.noise_model import ApplyNoise, CommandOrNoise, NoiseModel
     from graphix.sim.data import Data
     from numpy.random import Generator
@@ -435,9 +437,71 @@ def _graph_state_to_pattern(circuit: stim.Circuit, input_nodes: list[int], outpu
     return pattern
 
 
+def incorporate_pauli_results(  # noqa: C901, PLR0912
+    target: Pattern, commands: Iterable[CommandType], results: Mapping[Node, Outcome]
+) -> None:
+    """Return an equivalent pattern where results from Pauli presimulation are integrated in corrections."""
+    for cmd in commands:
+        match cmd.kind:
+            case CommandKind.M:
+                s = _incorporate_pauli_results_in_domain(results, cmd.s_domain)
+                t = _incorporate_pauli_results_in_domain(results, cmd.t_domain)
+                if s or t:
+                    if s:
+                        apply_x, new_s_domain = s
+                    else:
+                        apply_x = False
+                        new_s_domain = cmd.s_domain
+                    if t:
+                        apply_z, new_t_domain = t
+                    else:
+                        apply_z = False
+                        new_t_domain = cmd.t_domain
+                    new_cmd = command.M(cmd.node, cmd.measurement, new_s_domain, new_t_domain)
+                    if apply_x:
+                        new_cmd = new_cmd.clifford(Clifford.X)
+                    if apply_z:
+                        new_cmd = new_cmd.clifford(Clifford.Z)
+                    target.add(new_cmd)
+                else:
+                    target.add(cmd)
+            case CommandKind.X | CommandKind.Z:
+                signal = _incorporate_pauli_results_in_domain(results, cmd.domain)
+                if signal:
+                    apply_c, new_domain = signal
+                    if new_domain:
+                        cmd_cstr = command.X if cmd.kind == CommandKind.X else command.Z
+                        target.add(cmd_cstr(cmd.node, new_domain))
+                    if apply_c:
+                        c = Clifford.X if cmd.kind == CommandKind.X else Clifford.Z
+                        target.add(command.C(cmd.node, c))
+                else:
+                    target.add(cmd)
+            case _:
+                target.add(cmd)
+
+
+def _incorporate_pauli_results_in_domain(
+    results: Mapping[Node, Outcome], domain: AbstractSet[int]
+) -> tuple[bool, set[int]] | None:
+    if not (results.keys() & domain):
+        return None
+    new_domain = set(domain - results.keys())
+    odd_outcome = sum(outcome for node, outcome in results.items() if node in domain) % 2
+    return odd_outcome == 1, new_domain
+
+
+@dataclass(frozen=True, slots=True)
+class PresimulatedPattern:
+    """Pattern with presimulation results."""
+
+    pattern: Pattern
+    results: Mapping[Node, Outcome]
+
+
 def presimulate_pauli(
     pattern: Pattern, *, branch: Mapping[int, Outcome] | None = None, leave_input: bool = False
-) -> Pattern:
+) -> PresimulatedPattern:
     """Return a pattern where Clifford measurements have been presimulated."""
     leave_nodes = set(pattern.input_nodes) if leave_input else None
     pattern = StandardizedPattern.from_pattern(pattern).perform_pauli_pushing(leave_nodes).to_pattern()
@@ -448,6 +512,6 @@ def presimulate_pauli(
     output_node_set = set(pauli_pattern.output_nodes)
     input_nodes = [node for node in pattern.input_nodes if node in output_node_set]
     result_pattern = backend.to_pattern(input_nodes, non_pauli_pattern.input_nodes)
-    result_pattern.results = measure_method.results
-    result_pattern.extend(non_pauli_pattern)
-    return result_pattern
+    incorporate_pauli_results(result_pattern, non_pauli_pattern, measure_method.results)
+    result_pattern.reorder_output_nodes(pattern.output_nodes)
+    return PresimulatedPattern(result_pattern, measure_method.results)

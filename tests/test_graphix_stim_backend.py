@@ -68,17 +68,17 @@ def test_simple() -> None:
     pattern.add(command.E((1, 2)))
     pattern.add(command.M(0, Measurement.Y))
     pattern.add(command.M(1, Measurement.XY(0.4), s_domain={0}))
-    pattern2 = presimulate_pauli(pattern, leave_input=False)
+    presimulated_pattern = presimulate_pauli(pattern, leave_input=False)
     pattern.minimize_space()
-    pattern2.minimize_space()
+    presimulated_pattern.pattern.minimize_space()
     # Simulating the unprocessed pattern with the measures chosen by stim
-    pbs = FixedBranchSelector(pattern2.results, RandomBranchSelector())
+    pbs = FixedBranchSelector(presimulated_pattern.results, RandomBranchSelector())
     # Instantiate the measure method to retrieve the measures of the non-Pauli nodes
     measure_method = DefaultMeasureMethod()
     state = pattern.simulate_pattern(branch_selector=pbs, measure_method=measure_method)
     # Simulating the processed pattern with the measures drawn for the previous simulation
     pbs2 = FixedBranchSelector(measure_method.results)
-    state2 = pattern2.simulate_pattern(branch_selector=pbs2)
+    state2 = presimulated_pattern.pattern.simulate_pattern(branch_selector=pbs2)
     assert compare_backend_results(state2, state) == pytest.approx(1)
 
 
@@ -92,12 +92,12 @@ def test_pauli_measurement_random_circuit(fx_bg: PCG64, jumps: int) -> None:
     pattern = circuit.transpile().pattern
     pattern.standardize()
     pattern.shift_signals()
-    pattern2 = presimulate_pauli(pattern, leave_input=False)
+    presimulated_pattern = presimulate_pauli(pattern, leave_input=False)
     pattern.minimize_space()
     # pattern2.minimize_space()  # Break runnability!  # noqa: ERA001
     # Since the patterns are deterministic, we do not need to select a particular branch
     state = pattern.simulate_pattern()
-    state2 = pattern2.simulate_pattern()
+    state2 = presimulated_pattern.pattern.simulate_pattern()
     assert compare_backend_results(state, state2) == pytest.approx(1)
 
 
@@ -113,7 +113,7 @@ def test_branch_selection(fx_bg: PCG64, jumps: int) -> None:
     pattern.shift_signals()
     pattern_a = presimulate_pauli(pattern, leave_input=False)
     pattern_b = presimulate_pauli(pattern, leave_input=False, branch=pattern_a.results)
-    assert list(pattern_a) == list(pattern_b)
+    assert list(pattern_a.pattern) == list(pattern_b.pattern)
 
 
 @pytest.mark.parametrize("jumps", range(1, 11))
