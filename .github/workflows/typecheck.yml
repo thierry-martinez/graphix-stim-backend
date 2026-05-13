@@ -1,6 +1,8 @@
 name: typecheck
 
 on:
+  push:
+    branches: ['main']
   pull_request:
   workflow_dispatch:
 
@@ -12,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  python-version: "3.13"
+  python-version: "3.14"
 
 jobs:
   mypy-pyright:
