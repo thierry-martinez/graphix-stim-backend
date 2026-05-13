@@ -440,8 +440,9 @@ def _graph_state_to_pattern(circuit: stim.Circuit, input_nodes: list[int], outpu
 def incorporate_pauli_results(  # noqa: C901, PLR0912
     target: Pattern, commands: Iterable[CommandType], results: Mapping[Node, Outcome]
 ) -> None:
-    """Incorporate results from Pauli presimulation to the corrections of a given pattern.
-    
+    """
+    Incorporate results from Pauli presimulation to the corrections of a given pattern.
+
     Pattern ``target`` is modified in place.
     """
     for cmd in commands:

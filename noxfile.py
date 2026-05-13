@@ -11,7 +11,7 @@ def install_pytest(session: Session) -> None:
     session.install("pytest", "pytest-mock", "psutil")
 
 
-@nox.session(python=["3.10", "3.11", "3.12", "3.13"])
+@nox.session(python=["3.10", "3.11", "3.12", "3.13", "3.14"])
 def tests(session: Session) -> None:
     """Run the test suite with minimal dependencies."""
     session.install("-e", ".")
