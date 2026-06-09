@@ -7,7 +7,7 @@ ruff==0.14.14
 types-networkx==3.5.0.20250712
 
 # Pin version for typing
-stim=1.16.0
+stim==1.16.0
 
 # Tests
 nox==2025.5.1
