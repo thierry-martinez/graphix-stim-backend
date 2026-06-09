@@ -93,8 +93,9 @@ def test_pauli_measurement_random_circuit(fx_bg: PCG64, jumps: int) -> None:
     pattern.standardize()
     pattern.shift_signals()
     presimulated_pattern = presimulate_pauli(pattern, leave_input=False)
+    pattern.remove_pauli_measurements()
     pattern.minimize_space()
-    # pattern2.minimize_space()  # Break runnability!  # noqa: ERA001
+    presimulated_pattern.pattern.minimize_space()
     # Since the patterns are deterministic, we do not need to select a particular branch
     state = pattern.simulate_pattern()
     state2 = presimulated_pattern.pattern.simulate_pattern()
@@ -152,7 +153,7 @@ def simulate_with_noise_model_to_density_matrix(pattern: Pattern, noise_model: N
 
 def test_noisy_measure_confuse_hadamard() -> None:
     """Test noise with Hadamard."""
-    hadamard_pattern = hpat()
+    hadamard_pattern = hpat().infer_pauli_measurements()
     noise_model = DepolarisingNoiseModel(measure_error_prob=1.0)
     rho = simulate_with_noise_model_to_density_matrix(hadamard_pattern, noise_model)
     # result should be |1>
@@ -163,7 +164,7 @@ def test_noisy_measure_confuse_hadamard() -> None:
 def test_noisy_measure_confuse_hadamard_random(fx_bg: PCG64, jumps: int) -> None:
     """Test random noise with Hadamard."""
     rng = Generator(fx_bg.jumped(jumps))
-    hadamard_pattern = hpat()
+    hadamard_pattern = hpat().infer_pauli_measurements()
     noise_model = DepolarisingNoiseModel(measure_error_prob=rng.random())
     rho = simulate_with_noise_model_to_density_matrix(hadamard_pattern, noise_model)
     assert np.allclose(rho, np.array([[1.0, 0.0], [0.0, 0.0]])) or np.allclose(
@@ -227,7 +228,7 @@ def test_pattern_to_stim_circuit_hadamard() -> None:
     circuit = Circuit(2)
     circuit.h(0)
     circuit.h(1)
-    pattern = circuit.transpile().pattern
+    pattern = circuit.transpile().pattern.infer_pauli_measurements()
     node0 = pattern.output_nodes[0]
     node1 = pattern.output_nodes[1]
     pattern.add(command.M(node0))
