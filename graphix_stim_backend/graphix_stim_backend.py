@@ -317,6 +317,11 @@ class _AbstractStimBackend(Backend[stim.TableauSimulator]):
     def finalize(self, output_nodes: Iterable[int]) -> None:
         pass
 
+    @property
+    @override
+    def nqubit(self) -> int:
+        return self.state.num_qubits
+
     def to_pattern(self, input_nodes: list[int], output_nodes: list[int]) -> Pattern:
         """Return a pattern implementing the simulation."""
         tableau = self.state.current_inverse_tableau().inverse()
