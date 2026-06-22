@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/TeamGraphix/graphix.git
+graphix @ git+https://github.com/TeamGraphix/graphix.git@add-jcz
 stim>=1.15,<2
