@@ -317,6 +317,11 @@ class _AbstractStimBackend(Backend[stim.TableauSimulator]):
     def finalize(self, output_nodes: Iterable[int]) -> None:
         pass
 
+    @property
+    @override
+    def nqubit(self) -> int:
+        return self.state.num_qubits
+
     def to_pattern(self, input_nodes: list[int], output_nodes: list[int]) -> Pattern:
         """Return a pattern implementing the simulation."""
         tableau = self.state.current_inverse_tableau().inverse()
@@ -342,7 +347,7 @@ def pattern_to_stim_circuit(  # noqa: C901,PLR0912,PLR0915
     circuit = stim.Circuit()
     if isinstance(input_state, BasicState):
         for clifford in BASIC_STATE_TO_CLIFFORD[input_state]:
-            circuit.append(str(clifford), targets=pattern.input_nodes)  # type: ignore[call-overload]
+            circuit.append(str(clifford), targets=pattern.input_nodes)
     else:
         other_nodes = set(input_state.keys()) - set(pattern.input_nodes)
         if other_nodes:
@@ -351,7 +356,7 @@ def pattern_to_stim_circuit(  # noqa: C901,PLR0912,PLR0915
         for node in pattern.input_nodes:
             basic_state = input_state[node]
             for clifford in BASIC_STATE_TO_CLIFFORD[basic_state]:
-                circuit.append(str(clifford), targets=[node])  # type: ignore[call-overload]
+                circuit.append(str(clifford), targets=[node])
     if noise_model is None:
         actual_pattern: list[CommandOrNoise] = list(pattern)
     else:
@@ -372,33 +377,33 @@ def pattern_to_stim_circuit(  # noqa: C901,PLR0912,PLR0915
                     msg = f"Non-Pauli preparation: {cmd}"
                     raise ValueError(msg)
             for clifford in BASIC_STATE_TO_CLIFFORD[basic_state_or_none]:
-                circuit.append(str(clifford), [cmd.node])  # type: ignore[call-overload]
+                circuit.append(str(clifford), [cmd.node])
         elif cmd.kind == CommandKind.E:
-            circuit.append("CZ", cmd.nodes)  # type: ignore[call-overload]
+            circuit.append("CZ", cmd.nodes)
         elif cmd.kind == CommandKind.M:
             for node in cmd.s_domain:
-                circuit.append("CX", [get_target(node), cmd.node])  # type: ignore[call-overload]
+                circuit.append("CX", [get_target(node), cmd.node])
             for node in cmd.t_domain:
-                circuit.append("CZ", [get_target(node), cmd.node])  # type: ignore[call-overload]
+                circuit.append("CZ", [get_target(node), cmd.node])
             if not isinstance(cmd.measurement, PauliMeasurement):
                 msg = f"Non-Pauli measurement: {cmd}"
                 raise ValueError(msg)
             cliffords = pauli_measurement_to_clifford_gates(cmd.measurement)
             for clifford in reversed(cliffords):
-                circuit.append(str(clifford), [cmd.node])  # type: ignore[call-overload]
-            circuit.append("M", [cmd.node])  # type: ignore[call-overload]
+                circuit.append(str(clifford), [cmd.node])
+            circuit.append("M", [cmd.node])
             for clifford in cliffords:
-                circuit.append(str(clifford), [cmd.node])  # type: ignore[call-overload]
+                circuit.append(str(clifford), [cmd.node])
             measure_indices[cmd.node] = measure_count
             measure_count += 1
         elif cmd.kind == CommandKind.X:
             for node in cmd.domain:
-                circuit.append("CX", [get_target(node), cmd.node])  # type: ignore[call-overload]
+                circuit.append("CX", [get_target(node), cmd.node])
         elif cmd.kind == CommandKind.Z:
             for node in cmd.domain:
-                circuit.append("CZ", [get_target(node), cmd.node])  # type: ignore[call-overload]
+                circuit.append("CZ", [get_target(node), cmd.node])
         elif cmd.kind == CommandKind.C:
-            circuit.append(str(cmd.clifford), [cmd.node])  # type: ignore[call-overload]
+            circuit.append(str(cmd.clifford), [cmd.node])
         elif cmd.kind == CommandKind.ApplyNoise:
             match cmd.noise:
                 case DepolarisingNoise(prob=prob):
